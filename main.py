@@ -8,6 +8,9 @@ from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, fil
 import os
 import re
 
+# Вказуємо шлях до Tesseract
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+
 # Налаштування перекладача
 translator = GoogleTranslator(source='auto', target='uk')
 
@@ -21,7 +24,6 @@ def detect_language(text):
 
 # Функція для перевірки наявності тексту (ігноруємо смайлики, цифри та порожні повідомлення)
 def is_valid_text(text):
-    # Видаляємо смайлики, цифри та пробіли
     cleaned_text = re.sub(r'[^\w\s.,!?]', '', text)
     cleaned_text = re.sub(r'\d', '', cleaned_text).strip()
     return bool(cleaned_text)
@@ -34,33 +36,35 @@ async def handle_photo(update: Update, context) -> None:
 
     # Розпізнаємо текст
     img = Image.open(BytesIO(img_bytes))
-    extracted_text = pytesseract.image_to_string(img, lang='eng+ukr+rus')  # Англ, укр, рос
+    img = img.convert('L')  # Перетворення на чорно-біле
+    img = img.point(lambda x: 0 if x < 140 else 255)  # Збільшення контрасту
+    extracted_text = pytesseract.image_to_string(img, lang='eng+ukr+rus')
 
-    # Якщо тексту немає, або він не містить корисної інформації — ігноруємо
+    # Логи для відладки
+    print(f"Розпізнаний текст: {extracted_text}")
+
     if not extracted_text.strip() or not is_valid_text(extracted_text):
+        await update.message.reply_text("Не вдалося розпізнати текст 😔")
         return
 
     lang = detect_language(extracted_text)
     if lang in ["uk", "ru"]:
         return  # Ігноруємо, якщо текст українською чи російською
 
-    # Перекладаємо текст і відправляємо тільки переклад
     translated_text = translator.translate(extracted_text)
-    await update.message.reply_text(f"{translated_text}")
+    await update.message.reply_text(f"🌍 Переклад:\n{translated_text}")
 
 # Обробка текстових повідомлень
 async def handle_text(update: Update, context) -> None:
     user_text = update.message.text
 
-    # Ігноруємо, якщо в тексті немає корисної інформації
     if not is_valid_text(user_text):
         return
 
     lang = detect_language(user_text)
     if lang in ["uk", "ru"]:
-        return  # Ігноруємо, якщо текст українською чи російською
+        return
 
-    # Перекладаємо
     translated_text = translator.translate(user_text)
     await update.message.reply_text(f"🌍 Переклад:\n{translated_text}")
 
@@ -70,7 +74,7 @@ async def start(update: Update, context) -> None:
 
 # Запуск бота
 def main():
-    bot_token = os.getenv("BOT_TOKEN")  # Токен беремо з середовища змінних
+    bot_token = os.getenv("BOT_TOKEN")
     app = ApplicationBuilder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start))
