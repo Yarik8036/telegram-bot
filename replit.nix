@@ -1,7 +1,7 @@
 { pkgs }: {
   deps = [
-    pkgs.python311Full
-    pkgs.imagemagick_light
+    pkgs.nano
+    pkgs.glibcLocales
     pkgs.cacert
     pkgs.zlib
     pkgs.tk
@@ -14,9 +14,8 @@
     pkgs.libimagequant
     pkgs.lcms2
     pkgs.freetype
-    pkgs.glibcLocales
-    pkgs.nano
-    pkgs.mailutils
+    pkgs.python311Full
     pkgs.tesseract
+    pkgs.imagemagick_light
   ];
 }

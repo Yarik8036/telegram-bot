@@ -4,7 +4,7 @@ from io import BytesIO
 from deep_translator import GoogleTranslator
 from langdetect import detect
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, ContextTypes
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
 import os
 import re
 
@@ -19,17 +19,18 @@ def detect_language(text):
     except:
         return None
 
-# Функція для перевірки наявності тексту (ігноруємо смайлики та порожні повідомлення)
+# Функція для перевірки наявності тексту (ігноруємо смайлики, цифри та порожні повідомлення)
 def is_valid_text(text):
-    # Видаляємо смайлики та пробіли
-    cleaned_text = re.sub(r'[^\w\s.,!?]', '', text).strip()
+    # Видаляємо смайлики, цифри та пробіли
+    cleaned_text = re.sub(r'[^\w\s.,!?]', '', text)
+    cleaned_text = re.sub(r'\d', '', cleaned_text).strip()
     return bool(cleaned_text)
 
 # Обробка зображень
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+def handle_photo(update: Update, context) -> None:
     photo = update.message.photo[-1]
-    photo_file = await photo.get_file()
-    img_bytes = await photo_file.download_as_bytearray()
+    photo_file = photo.get_file()
+    img_bytes = photo_file.download_as_bytearray()
 
     # Розпізнаємо текст
     img = Image.open(BytesIO(img_bytes))
@@ -45,10 +46,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     # Перекладаємо текст і відправляємо тільки переклад
     translated_text = translator.translate(extracted_text)
-    await update.message.reply_text(f"{translated_text}")
+    update.message.reply_text(f"{translated_text}")
 
 # Обробка текстових повідомлень
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+def handle_text(update: Update, context) -> None:
     user_text = update.message.text
 
     # Ігноруємо, якщо в тексті немає корисної інформації
@@ -61,23 +62,25 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     # Перекладаємо
     translated_text = translator.translate(user_text)
-    await update.message.reply_text(f"🌍 Переклад:\n{translated_text}")
+    update.message.reply_text(f"🌍 Переклад:\n{translated_text}")
 
 # Команда /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Привіт! Надсилай мені текст іншими мовами – я перекладу на українську!")
+def start(update: Update, context) -> None:
+    update.message.reply_text("Привіт! Надсилай мені текст іншими мовами – я перекладу на українську!")
 
 # Запуск бота
 def main():
     bot_token = os.getenv("BOT_TOKEN")  # Токен беремо з середовища змінних
-    app = ApplicationBuilder().token(bot_token).build()
+    updater = Updater(token=bot_token, use_context=True)
+    dispatcher = updater.dispatcher
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(MessageHandler(filters.TEXT, handle_text))
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(MessageHandler(Filters.photo, handle_photo))
+    dispatcher.add_handler(MessageHandler(Filters.text, handle_text))
 
     print("Бот запущено!")
-    app.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
